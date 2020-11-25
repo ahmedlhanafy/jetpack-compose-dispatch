@@ -1,0 +1,205 @@
+package com.ahmedlhanafy.androiddispatch
+
+import android.os.Bundle
+import android.util.Log
+import androidx.activity.viewModels
+import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.foundation.Icon
+import androidx.compose.foundation.Text
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumnFor
+import androidx.compose.material.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.WithConstraints
+import androidx.compose.ui.gesture.scrollorientationlocking.Orientation
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.DensityAmbient
+import androidx.compose.ui.platform.setContent
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.ahmedlhanafy.androiddispatch.ui.AndroidDispatchTheme
+import kotlinx.coroutines.launch
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
+
+class MainActivity : AppCompatActivity() {
+
+    @ExperimentalMaterialApi
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        val rootStore: RootStore by viewModels()
+        val webservice by lazy {
+            Retrofit.Builder()
+                .baseUrl("http://10.0.2.2:3000")
+                .addConverterFactory(GsonConverterFactory.create())
+                .build().create(ApiService::class.java)
+        }
+
+        val ctx = Ctx(webservice)
+
+        setContent {
+            val dispatch = remember(rootStore) { Dispatch(rootStore, ctx) }
+            Providers(DispatchAmbient provides dispatch) {
+                AndroidDispatchTheme {
+                    Surface(color = MaterialTheme.colors.background) {
+                        Column {
+                            Profile()
+                            Todos()
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+@ExperimentalMaterialApi
+@Composable
+fun Todo(todo: Todo, onCheck: (Boolean) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().padding(16.dp)
+    ) {
+        Checkbox(checked = todo.checked, onCheckedChange = onCheck)
+        Spacer(Modifier.width(8.dp))
+        Text(text = todo.text)
+    }
+}
+
+@ExperimentalMaterialApi
+@Composable
+fun SwipeableBox(
+    modifier: Modifier = Modifier,
+    behindContent: @Composable () -> Unit,
+    content: @Composable () -> Unit
+) {
+    WithConstraints {
+        val width = with(DensityAmbient.current) { constraints.maxWidth.toDp() }
+        val squareSize = 50.dp
+
+        val swipeableState = rememberSwipeableState("Hidden")
+        val sizePx = with(DensityAmbient.current) { (width - squareSize).toPx() }
+        val widthPx = with(DensityAmbient.current) { width.toPx() }
+        val anchors =
+            mapOf(
+                sizePx to "Visible",
+                widthPx to "Hidden"
+            )
+        val offset =
+            with(DensityAmbient.current) { if (!swipeableState.offset.value.isNaN()) (width - swipeableState.offset.value.toDp()) * -1 else 0.dp }
+
+        Box(
+            modifier = modifier
+                .preferredWidth(width)
+                .swipeable(
+                    state = swipeableState,
+                    anchors = anchors,
+                    thresholds = { _, _ -> FixedThreshold(0.dp) },
+                    orientation = Orientation.Horizontal,
+                    resistance = ResistanceConfig(10000f)
+                ).wrapContentHeight()
+        ) {
+            Box(
+                Modifier.offset(x = offset)
+                    .align(Alignment.TopStart)
+            ) {
+                content()
+            }
+            Box(
+                Modifier
+                    .offsetPx(x = swipeableState.offset)
+                    .preferredWidth(squareSize * 4)
+                    .matchParentSize()
+                    .background(Color.Red),
+                alignment = Alignment.Center
+            ) {
+                Box(Modifier.preferredWidth(squareSize).align(Alignment.TopStart)) {
+                    behindContent()
+                }
+
+            }
+        }
+    }
+
+}
+
+@ExperimentalMaterialApi
+@Composable
+fun Todos() {
+    var text by remember { mutableStateOf("") }
+    val dispatch = getDispatch()
+    val scope = rememberCoroutineScope()
+
+    launchInComposition {
+        dispatch.fetchTodos()
+    }
+
+    Box(Modifier.fillMaxSize()) {
+        LazyColumnFor(items = dispatch.rootStore.todos, Modifier.fillMaxSize()) { todo ->
+            key(todo.id) {
+                SwipeableBox(behindContent = {
+                    Icon(
+                        asset = Icons.Default.Delete,
+                        tint = Color.White,
+                        modifier = Modifier.fillMaxSize().clickable(
+                            onClick = {
+                                scope.launch { dispatch.deleteTodo(todo.id) }
+                            }
+                        )
+                    )
+                }) {
+                    Todo(todo, onCheck = { scope.launch { dispatch.toggleTodoCheck(todo.id, it) } })
+                }
+            }
+        }
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp)
+        ) {
+            OutlinedTextField(
+                value = text,
+                onValueChange = { text = it },
+                placeholder = { Text("Enter your todo") }
+            )
+            Spacer(Modifier.width(8.dp))
+            FloatingActionButton(
+                onClick = {
+                    scope.launch {
+                        val newTodoText = text
+                        text = ""
+                        dispatch.addTodo(newTodoText, false)
+                    }
+                }) {
+                Icon(asset = Icons.Default.Add)
+            }
+        }
+    }
+
+
+}
+
+@Composable
+fun Profile() {
+    val dispatch = getDispatch()
+
+    launchInComposition {
+        dispatch.fetchUser()
+    }
+
+    Text(
+        text = "Welcome back, ${dispatch.rootStore.profile?.name}!",
+        modifier = Modifier.padding(16.dp),
+        textAlign = TextAlign.Center,
+        style = MaterialTheme.typography.h5
+    )
+}
+
