@@ -4,6 +4,9 @@ import android.os.Bundle
 import android.util.Log
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.ExperimentalAnimationApi
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.Icon
 import androidx.compose.foundation.Text
 import androidx.compose.foundation.background
@@ -15,16 +18,21 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.runtime.*
+import androidx.compose.runtime.State
+import androidx.compose.runtime.savedinstancestate.rememberSavedInstanceState
+import androidx.compose.runtime.savedinstancestate.savedInstanceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.WithConstraints
+import androidx.compose.ui.draw.drawOpacity
+import androidx.compose.ui.drawLayer
+import androidx.compose.ui.focus.ExperimentalFocus
 import androidx.compose.ui.gesture.scrollorientationlocking.Orientation
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.DensityAmbient
 import androidx.compose.ui.platform.setContent
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.ahmedlhanafy.androiddispatch.ui.AndroidDispatchTheme
 import kotlinx.coroutines.launch
 import retrofit2.Retrofit
@@ -32,39 +40,47 @@ import retrofit2.converter.gson.GsonConverterFactory
 
 class MainActivity : AppCompatActivity() {
 
+    @ExperimentalFocus
+    @ExperimentalAnimationApi
     @ExperimentalMaterialApi
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        val rootStore: RootStore by viewModels()
-        val webservice by lazy {
-            Retrofit.Builder()
-                .baseUrl("http://10.0.2.2:3000")
-                .addConverterFactory(GsonConverterFactory.create())
-                .build().create(ApiService::class.java)
-        }
+    override fun onCreate(x: Bundle?) {
+        super.onCreate(x)
+//        val rootStore: RootStore by viewModels()
+//        val webservice by lazy {
+//            Retrofit.Builder()
+//                .baseUrl("http://10.0.2.2:3000")
+//                .addConverterFactory(GsonConverterFactory.create())
+//                .build().create(ApiService::class.java)
+//        }
+//
+//        val ctx = Ctx(webservice)
 
-        val ctx = Ctx(webservice)
 
         setContent {
-            val dispatch = remember(rootStore) { Dispatch(rootStore, ctx) }
-            Providers(DispatchAmbient provides dispatch) {
-                AndroidDispatchTheme {
-                    Surface(color = MaterialTheme.colors.background) {
-                        Column {
-                            Profile()
-                            Todos()
-                        }
-                    }
-                }
+            AndroidDispatchTheme {
+                Mail()
             }
         }
     }
+//            val dispatch = remember(rootStore) { Dispatch(rootStore, ctx) }
+//
+//            Providers(DispatchAmbient provides dispatch) {
+//                    Surface(color = MaterialTheme.colors.background) {
+//                        Column {
+//                            Profile()
+//                            Todos()
+//                        }
+//                    }
+//                }
+//            }
+//        }
+//    }
 }
 
 
 @ExperimentalMaterialApi
 @Composable
-fun Todo(todo: Todo, onCheck: (Boolean) -> Unit) {
+fun Todo(todo: Todo, onCheck: (Boolean) -> Unit, modifier: Modifier = Modifier) {
     Row(
         Modifier.fillMaxWidth().padding(16.dp)
     ) {
@@ -74,63 +90,27 @@ fun Todo(todo: Todo, onCheck: (Boolean) -> Unit) {
     }
 }
 
-@ExperimentalMaterialApi
+@ExperimentalAnimationApi
 @Composable
-fun SwipeableBox(
-    modifier: Modifier = Modifier,
-    behindContent: @Composable () -> Unit,
-    content: @Composable () -> Unit
-) {
-    WithConstraints {
-        val width = with(DensityAmbient.current) { constraints.maxWidth.toDp() }
-        val squareSize = 50.dp
+fun Test() {
+    val list = remember { mutableStateListOf("one", "two", "three") }
+    val deletedList = remember { mutableStateMapOf<String, Unit>() }
 
-        val swipeableState = rememberSwipeableState("Hidden")
-        val sizePx = with(DensityAmbient.current) { (width - squareSize).toPx() }
-        val widthPx = with(DensityAmbient.current) { width.toPx() }
-        val anchors =
-            mapOf(
-                sizePx to "Visible",
-                widthPx to "Hidden"
-            )
-        val offset =
-            with(DensityAmbient.current) { if (!swipeableState.offset.value.isNaN()) (width - swipeableState.offset.value.toDp()) * -1 else 0.dp }
-
-        Box(
-            modifier = modifier
-                .preferredWidth(width)
-                .swipeable(
-                    state = swipeableState,
-                    anchors = anchors,
-                    thresholds = { _, _ -> FixedThreshold(0.dp) },
-                    orientation = Orientation.Horizontal,
-                    resistance = ResistanceConfig(10000f)
-                ).wrapContentHeight()
-        ) {
-            Box(
-                Modifier.offset(x = offset)
-                    .align(Alignment.TopStart)
-            ) {
-                content()
+    LazyColumnFor(
+        list
+    ) { item ->
+        AnimatedVisibility(!deletedList.contains(item)) {
+            onDispose {
+                list.remove(item)
             }
-            Box(
-                Modifier
-                    .offsetPx(x = swipeableState.offset)
-                    .preferredWidth(squareSize * 4)
-                    .matchParentSize()
-                    .background(Color.Red),
-                alignment = Alignment.Center
-            ) {
-                Box(Modifier.preferredWidth(squareSize).align(Alignment.TopStart)) {
-                    behindContent()
-                }
-
-            }
+            Text(item, modifier = Modifier.clickable(onClick = { deletedList[item] = Unit }))
         }
     }
-
 }
 
+data class CallbackContainer(var current: () -> Unit)
+
+@ExperimentalFocus
 @ExperimentalMaterialApi
 @Composable
 fun Todos() {
@@ -142,49 +122,54 @@ fun Todos() {
         dispatch.fetchTodos()
     }
 
+    val callback = remember { CallbackContainer({}) }
+
     Box(Modifier.fillMaxSize()) {
-        LazyColumnFor(items = dispatch.rootStore.todos, Modifier.fillMaxSize()) { todo ->
-            key(todo.id) {
-                SwipeableBox(behindContent = {
-                    Icon(
-                        asset = Icons.Default.Delete,
-                        tint = Color.White,
-                        modifier = Modifier.fillMaxSize().clickable(
-                            onClick = {
-                                scope.launch { dispatch.deleteTodo(todo.id) }
-                            }
-                        )
-                    )
-                }) {
-                    Todo(todo, onCheck = { scope.launch { dispatch.toggleTodoCheck(todo.id, it) } })
+        Providers(SwipeableAmbient provides callback) {
+            LazyColumnFor(
+                items = dispatch.rootStore.todos,
+            ) { todo ->
+                key(todo.id) {
+                    SwipeableBox(onAction = {
+                        scope.launch { dispatch.deleteTodo(todo.id) }
+                    }) {
+                        Todo(
+                            todo,
+                            onCheck = {
+                                scope.launch {
+                                    dispatch.toggleTodoCheck(
+                                        todo.id,
+                                        it
+                                    )
+                                }
+                            })
+                    }
+                }
+            }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp)
+            ) {
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    placeholder = { Text("Enter your todo") }
+                )
+                Spacer(Modifier.width(8.dp))
+                FloatingActionButton(
+                    onClick = {
+                        scope.launch {
+                            val newTodoText = text
+                            text = ""
+                            dispatch.addTodo(newTodoText, false)
+                        }
+                    }) {
+                    Icon(asset = Icons.Default.Add)
                 }
             }
         }
-
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp)
-        ) {
-            OutlinedTextField(
-                value = text,
-                onValueChange = { text = it },
-                placeholder = { Text("Enter your todo") }
-            )
-            Spacer(Modifier.width(8.dp))
-            FloatingActionButton(
-                onClick = {
-                    scope.launch {
-                        val newTodoText = text
-                        text = ""
-                        dispatch.addTodo(newTodoText, false)
-                    }
-                }) {
-                Icon(asset = Icons.Default.Add)
-            }
-        }
     }
-
-
 }
 
 @Composable

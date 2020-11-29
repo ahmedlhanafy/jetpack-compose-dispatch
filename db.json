@@ -3,5 +3,11 @@
     "name": "Ahmed Elhanafy",
     "age": 25
   },
-  "todos": []
+  "todos": [
+    {
+      "text": "cccc",
+      "checked": "false",
+      "id": 3
+    }
+  ]
 }
