@@ -1,42 +1,26 @@
 package com.ahmedlhanafy.androiddispatch
 
 import android.os.Bundle
-import android.util.Log
-import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalAnimationApi
-import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.Icon
 import androidx.compose.foundation.Text
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumnFor
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.runtime.*
-import androidx.compose.runtime.State
-import androidx.compose.runtime.savedinstancestate.rememberSavedInstanceState
-import androidx.compose.runtime.savedinstancestate.savedInstanceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.WithConstraints
-import androidx.compose.ui.draw.drawOpacity
-import androidx.compose.ui.drawLayer
 import androidx.compose.ui.focus.ExperimentalFocus
-import androidx.compose.ui.gesture.scrollorientationlocking.Orientation
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.DensityAmbient
 import androidx.compose.ui.platform.setContent
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.ahmedlhanafy.androiddispatch.ui.AndroidDispatchTheme
 import kotlinx.coroutines.launch
-import retrofit2.Retrofit
-import retrofit2.converter.gson.GsonConverterFactory
 
 class MainActivity : AppCompatActivity() {
 
@@ -125,48 +109,46 @@ fun Todos() {
     val callback = remember { CallbackContainer({}) }
 
     Box(Modifier.fillMaxSize()) {
-        Providers(SwipeableAmbient provides callback) {
-            LazyColumnFor(
-                items = dispatch.rootStore.todos,
-            ) { todo ->
-                key(todo.id) {
-                    SwipeableBox(onAction = {
-                        scope.launch { dispatch.deleteTodo(todo.id) }
-                    }) {
-                        Todo(
-                            todo,
-                            onCheck = {
-                                scope.launch {
-                                    dispatch.toggleTodoCheck(
-                                        todo.id,
-                                        it
-                                    )
-                                }
-                            })
-                    }
+        LazyColumnFor(
+            items = dispatch.rootStore.todos,
+        ) { todo ->
+            key(todo.id) {
+                SwipeableBox(leftOnAction = {
+                    scope.launch { dispatch.deleteTodo(todo.id) }
+                }) {
+                    Todo(
+                        todo,
+                        onCheck = {
+                            scope.launch {
+                                dispatch.toggleTodoCheck(
+                                    todo.id,
+                                    it
+                                )
+                            }
+                        })
                 }
             }
+        }
 
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp)
-            ) {
-                OutlinedTextField(
-                    value = text,
-                    onValueChange = { text = it },
-                    placeholder = { Text("Enter your todo") }
-                )
-                Spacer(Modifier.width(8.dp))
-                FloatingActionButton(
-                    onClick = {
-                        scope.launch {
-                            val newTodoText = text
-                            text = ""
-                            dispatch.addTodo(newTodoText, false)
-                        }
-                    }) {
-                    Icon(asset = Icons.Default.Add)
-                }
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp)
+        ) {
+            OutlinedTextField(
+                value = text,
+                onValueChange = { text = it },
+                placeholder = { Text("Enter your todo") }
+            )
+            Spacer(Modifier.width(8.dp))
+            FloatingActionButton(
+                onClick = {
+                    scope.launch {
+                        val newTodoText = text
+                        text = ""
+                        dispatch.addTodo(newTodoText, false)
+                    }
+                }) {
+                Icon(asset = Icons.Default.Add)
             }
         }
     }
